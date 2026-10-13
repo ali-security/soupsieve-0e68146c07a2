@@ -1,5 +1,6 @@
 """Test language selectors."""
 from .. import util
+import soupsieve as sv
 
 
 class TestLang(util.TestCase):
@@ -401,3 +402,38 @@ class TestLang(util.TestCase):
             [],
             flags=util.XHTML
         )
+
+    def test_language_unclosed_quote(self):
+        """Test language with unclosed quotes fails for syntax error, not timeout error."""
+
+        import platform
+
+        patterns = (
+            'p:lang("' + ('x' * 300),
+            "p:lang('" + ('x' * 300)
+        )
+
+        if platform.system() == 'Windows':
+            for pattern in patterns:
+                with self.assertRaises(sv.SelectorSyntaxError):
+                    sv.compile(pattern)
+        else:
+            import signal
+
+            def timeout_handler(signum, frame):
+                raise TimeoutError
+
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(3)
+
+            passed = False
+            try:
+                for pattern in patterns:
+                    with self.assertRaises(sv.SelectorSyntaxError):
+                        sv.compile(pattern)
+                passed = True
+            except TimeoutError:
+                pass
+            finally:
+                signal.alarm(0)
+            self.assertTrue(passed)

@@ -590,6 +590,66 @@ class TestInvalid(util.TestCase):
         with self.assertRaises(TypeError):
             sv.filter('div', "not a tag", flags=flags)
 
+    def test_excessive_selectors(self):
+        """Test excessive selectors."""
+
+        # Build a 500 KB selector string: "a,a,a,...,a" (250,000 items)
+        count = 10000
+        selector = ",".join("a" for _ in range(count))
+
+        # Compile the selector
+        with self.assertRaises(ValueError):
+            sv.compile(selector)
+
+    def test_excessive_custom_selectors(self):
+        """Test excessive custom selectors."""
+
+        # Build a 500 KB selector string: "a,a,a,...,a" (250,000 items)
+        count = 10000
+        selector = ",".join("a" for _ in range(count))
+
+        # Compile the selector
+        with self.assertRaises(ValueError):
+            sv.compile('div:--custom', custom={':--custom': selector})
+
+    def test_excessive_custom_and_normal_selectors(self):
+        """Test excessive custom and normal selectors."""
+
+        count = 5000
+        selector = ",".join("a" for _ in range(count))
+
+        # Compile the selector
+        with self.assertRaises(ValueError):
+            sv.compile(':is({}):--custom'.format(selector), custom={':--custom': selector})
+
+    def test_excessive_repeated_custom_selectors(self):
+        """Test that reusing a custom selector many times counts each expansion against the limit."""
+
+        # Each custom selector expansion is well under the limit, but reusing it amplifies the total.
+        selector = ",".join("a" for _ in range(1000))
+        pattern = ':is({})'.format(', '.join(':--custom' for _ in range(10)))
+
+        with self.assertRaises(ValueError):
+            sv.compile(pattern, custom={':--custom': selector})
+
+    def test_excessive_builtin_pseudo_class_expansion(self):
+        """Test that built-in pseudo-classes backed by selector lists count against the limit."""
+
+        # Each `:read-only` expands to a sizable pre-compiled selector list.
+        pattern = ':is({})'.format(', '.join(':read-only' for _ in range(1000)))
+
+        with self.assertRaises(ValueError):
+            sv.compile(pattern)
+
+    def test_selectors_under_limit(self):
+        """Test that large selectors under the limit still compile."""
+
+        selector = ",".join("a" for _ in range(4000))
+        self.assertEqual(len(sv.compile(selector).selectors), 4000)
+
+        custom = ",".join("a" for _ in range(2000))
+        sv.compile(':is({}):--custom'.format(custom), custom={':--custom': custom})
+
 
 class TestSyntaxErrorReporting(util.TestCase):
     """Test reporting of syntax errors."""
